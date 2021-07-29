@@ -2,10 +2,11 @@
 const Binance = require('node-binance-api');
 const Candle = require('./candle');
 const Matematyka = require('./matematyka');
+const Secrets = require('./secrets.json')
 
 const binance = new Binance().options({
-  APIKEY: '<key>',
-  APISECRET: '<secret>',
+  APIKEY: Secrets.API_KEY,
+  APISECRET: Secrets.API_SECRET,
   test: true
 });
 
@@ -164,6 +165,8 @@ async function main()
 	await programInit();
 	console.log("liczba symboli, await: "+ swieczki.length);
 	subskrybuj();
+
+	console.info( await binance.futuresOpenOrders() );
 };
 
 main();
