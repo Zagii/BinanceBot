@@ -7,7 +7,8 @@ const Secrets = require('./secrets.json')
 const binance = new Binance().options({
   APIKEY: Secrets.API_KEY,
   APISECRET: Secrets.API_SECRET,
-  test: true
+  test: true,
+  useServerTime: true,
 });
 
 
@@ -24,7 +25,9 @@ const configTab=[
 }*/
 ];
 
+let listenKey;
 let swieczki=[];
+let ordery=[];
 
 function setSwieczke(e,symbol,interwal)
 {
@@ -36,7 +39,7 @@ function setSwieczke(e,symbol,interwal)
   
 function przeliczSymbol(dane)
 {
-	console.log('przeliczSymbol: '+dane.symbol);
+	//console.log('przeliczSymbol: '+dane.symbol);
 	dane.maxKurs = Matematyka.maxKurs(dane.swieczki,"high");
 	dane.minKurs = Matematyka.minKurs(dane.swieczki,"low");
 	dane.dataMA5 = Matematyka.calculateMA(5,dane.swieczki,"close");
@@ -48,7 +51,7 @@ function przeliczSymbol(dane)
 
 async function programInit()
 {
-
+	
 	for (const element of configTab) {
 		const r = await pobierzSwieczki15min(element);
 		let swieczka = setSwieczke(r,element.symbol,element.interwal);
@@ -56,7 +59,13 @@ async function programInit()
 		swieczka = przeliczSymbol(swieczka);
 		swieczki.push(swieczka);
 	  }
-
+	  let orderAll= [];
+	  orderAll = await binance.futuresAllOrders();
+	  for (const el of configTab) {
+		  let ord = orderAll.filter(x=>x.symbol==el.symbol)
+		  let order={"symbol":el.symbol, "orderList": ord};
+		  ordery.push(order);
+	  }
 }
 
 function pobierzSwieczki15min(e)
@@ -73,23 +82,6 @@ function pobierzSwieczki15min(e)
 	});
 }
 
-
-/*
-// Getting latest price of a symbol
-
-// Getting list of current balances
-binance.balance(function(error, balances) {
-	console.log("balances()", balances);
-	if ( typeof balances.ETH !== "undefined" ) {
-		console.log("ETH balance: ", balances.ETH.available);
-	}
-});
-*/
-
-// Getting list of open orders
-//binance.openOrders("ETHBTC", function(error, json) {
-//	console.log("openOrders()",json);
-//});
 
 // Check an order's status
 //let orderid = "7610385";
@@ -108,16 +100,6 @@ binance.balance(function(error, balances) {
 //	console.log(json);
 //});
 
-//Placing a LIMIT order
-//binance.buy(symbol, quantity, price);
-//binance.buy("ETHBTC", 1, 0.0679);
-//binance.sell("ETHBTC", 1, 0.069);
-
-//Placing a MARKET order
-//binance.buy(symbol, quantity, price, type);
-//binance.buy("ETHBTC", 1, 0, "MARKET")
-//binance.sell(symbol, quantity, 0, "MARKET");
-
 
 function nowaSwieczkaWS(candlesticks)
 {
@@ -125,7 +107,7 @@ function nowaSwieczkaWS(candlesticks)
 	let { e:eventType, E:eventTime, s:symbol, k:ticks, } = candlesticks;
 	let interval=ticks.i;
 	const e= Candle.initWS(ticks);
-	console.info(symbol+" "+interval+" nowaSwieczkaWS");
+	//console.info(symbol+" "+interval+" nowaSwieczkaWS");
 	let a = swieczki.findIndex(x=>(x.symbol==symbol && x.interwal==interval));
 	if (a<0) 
 	{
@@ -148,6 +130,8 @@ function nowaSwieczkaWS(candlesticks)
 	//sprawdz czy otwarta pozycja
 	//czy otworzyc pozycje?
 	// buy
+	//symbol, quantity, price, params = {}
+
 	// sell
 }
 function subskrybuj()
@@ -155,6 +139,10 @@ function subskrybuj()
 	for (const element of configTab) {
 		binance.websockets.candlesticks(element.symbol, element.interwal, (candlesticks) =>nowaSwieczkaWS(candlesticks) );
 	}
+
+	//binance.futuresSubscribe(,console.log)
+	//binance.deliveryAllOrders(consol.log)
+	
 }
 
 
@@ -166,7 +154,34 @@ async function main()
 	console.log("liczba symboli, await: "+ swieczki.length);
 	subskrybuj();
 
-	console.info( await binance.futuresOpenOrders() );
+
+// When the stop is reached, a stop order becomes a market order
+// Note: You must also pass one of these type parameters:
+// STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT
+let type = "STOP_LOSS";
+let quantity = 1;
+let price = 40000;
+let stopPrice = 19000;
+let params={
+	type:'TRAILING_STOP_MARKET',
+	activationPrice: price-0.02*price,
+	callbackRate: 1,
+
+};
+//binance.sell("ETHBTC", quantity, price, {stopPrice: stopPrice, type: type});
+//log= await binance.futuresBuy( 'BTCUSDT', quantity,price, params );
+	//let log= await binance.futuresBuy( 'BTCUSDT', quantity,price);
+	
+	price = 47500;
+	params={
+		type:'STOP_MARKET',
+		stopPrice:39000
+	
+	};
+//	log= await binance.futuresBuy( 'BTCUSDT', quantity );
+//log=await binance.futuresMarketBuy( 'BTCUSDT', 1,params );
+//	console.info( await binance.futuresGetDataStream() );
+	console.info( log);
 };
 
 main();
