@@ -44,6 +44,12 @@ var candle=
     },
     error:function (error) { 
         console.log('Error: ' + error);
+    },
+    setSwieczke: function (e,symbol,interwal)
+    {   
+	    console.log("dodaje swieczke: "+symbol);
+	    let o={'symbol':symbol, "interwal": interwal, "swieczki":e};
+	    return o;
     }
 
 };

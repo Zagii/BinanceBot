@@ -25,6 +25,15 @@ const configTab=[
 		'maLiczba':7,	// jaki MA liczymy
 		'maOrderTrigger':1000, // jaka musi być różnica MA-kurs by zlozyc zlecenie
 		'quantity':0.05, // wielkosc zakladu
+	},
+	{ 
+		'symbol':'BCHUSDT',
+		'interwal':'15m', // na jakich świeczkach operujemy
+		'liczba': 20,	// liczba świeczek do analizy
+		'slPips':300,	// liczba pipsów dla stop loss
+		'maLiczba':7,	// jaki MA liczymy
+		'maOrderTrigger':150, // jaka musi być różnica MA-kurs by zlozyc zlecenie
+		'quantity':0.02, // wielkosc zakladu
 	}
 ];
 var config={

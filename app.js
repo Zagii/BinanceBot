@@ -20,24 +20,21 @@ let orderyOpen=[];
 let pozycje=[];
 
 
-function setSwieczke(e,symbol,interwal)
-{
-	console.log("dodaje swieczke: "+symbol);
-	let o={'symbol':symbol, "interwal": interwal, "swieczki":e};
+// function setSwieczke(e,symbol,interwal)
+// {
+// 	console.log("dodaje swieczke: "+symbol);
+// 	let o={'symbol':symbol, "interwal": interwal, "swieczki":e};
 
-	return o;
-}
+// 	return o;
+// }
   
-function przeliczSymbol(dane,config)
-{
-	//console.log('przeliczSymbol: '+dane.symbol);
-	dane.maxKurs = Matematyka.getMax(dane.swieczki,"high");
-	dane.minKurs = Matematyka.getMin(dane.swieczki,"low");
-	dane.dataMA = Matematyka.calculateMA(config.maLiczba,dane.swieczki,"close");
-//	dane.dataMA10 = Matematyka.calculateMA(10,dane.swieczki,"close");
-//	dane.dataMA15 = Matematyka.calculateMA(15,dane.swieczki,"close");
-	return dane;
-}
+// function przeliczSymbol(dane,config)
+// {
+// 	dane.maxKurs = Matematyka.getMax(dane.swieczki,"high");
+// 	dane.minKurs = Matematyka.getMin(dane.swieczki,"low");
+// 	dane.dataMA = Matematyka.calculateMA(config.maLiczba,dane.swieczki,"close");
+// 	return dane;
+// }
 
 
 async function programInit()
@@ -49,9 +46,9 @@ async function programInit()
 		try{
 			configTab[i].exInfo= exinfo.symbols.find(x=>x.symbol===element.symbol);
 		const r = await pobierzSwieczki15min(element);
-		let swieczka = setSwieczke(r,element.symbol,element.interwal);
+		let swieczka = Candle.setSwieczke(r,element.symbol,element.interwal);
 
-		swieczka = przeliczSymbol(swieczka,element);
+		swieczka = Matematyka.przeliczSymbol(swieczka,element);
 		swieczki.push(swieczka);
 		}catch(err)
 		{
@@ -96,7 +93,7 @@ async function nowaSwieczkaWS(candlesticks)
 	let a = swieczki.findIndex(x=>(x.symbol==symbol && x.interwal==interval));
 	if (a<0) 
 	{
-		console.log("** ERR nieznana swieczka");
+		console.log("** ERR nieznana swieczka, ",symbol,' ',interval);
 		console.log(e);
 		return;
 	}
@@ -109,7 +106,7 @@ async function nowaSwieczkaWS(candlesticks)
 		swieczki[a].swieczki[swieczki[a].swieczki.length-1] = e;
 	}
 	let conf =configTab.find(x=>x.symbol==symbol)
-	swieczki[a]= przeliczSymbol(swieczki[a],conf);
+	swieczki[a]= Matematyka.przeliczSymbol(swieczki[a],conf);
 }
 
 
@@ -137,15 +134,15 @@ async function cyklicznie()
 		let ord = orderyOpen.filter(x=>x.symbol==e.symbol&& x.side!=orderType );
 		let sl;
 		let nowySL;
-	
+		let ma=swieczki[a].dataMA[swieczki[a].dataMA.length-1];
 		if(orderType=='BUY') //buy
 		{
 			sl = Matematyka.getMax(ord,"stopPrice");
-			nowySL=Matematyka.getNowySL(p,sl,e,orderType);
+			nowySL=Matematyka.getNowySL(p,sl,e,orderType,ma);
 		}else
 		{
 			sl = Matematyka.getMin(ord,"stopPrice");
-			nowySL=Matematyka.getNowySL(p,sl,e,orderType);
+			nowySL=Matematyka.getNowySL(p,sl,e,orderType,ma);
 		}
 		let ordToCancel=[];
 		if(nowySL!=sl)	

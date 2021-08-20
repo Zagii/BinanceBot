@@ -39,7 +39,14 @@ getMin: function(tab, pole,  start, end) {
     }
     return result;
  },
- getNowySL(p,sl,conf,orderType)
+ przeliczSymbol: function(dane,config)
+ {
+	dane.maxKurs = this.getMax(dane.swieczki,"high");
+	dane.minKurs = this.getMin(dane.swieczki,"low");
+	dane.dataMA = this.calculateMA(config.maLiczba,dane.swieczki,"close");
+	return dane;
+ },
+ getNowySL(p,sl,conf,orderType,ma)
  {
 
   let delta=p.entryPrice - p.markPrice;
@@ -54,9 +61,19 @@ getMin: function(tab, pole,  start, end) {
   
   if(sl==Infinity || sl==-Infinity){  sl=retSL; console.log('Inf SL');}
   
-  let deltaSL = orderType=='BUY' ?  retSL - sl  :  sl - retSL; 
+  let deltaSL;
+  if( orderType=='BUY' )
+  {
+    retSL = Math.min(retSL,ma);
+    deltaSL =  retSL - sl;
+  }
+  else
+  {
+    retSL= Math.max(retSL,ma)
+    deltaSL=  sl - retSL; 
+  }
 
- 
+
  // console.info('e: ',p.entryPrice,', m: ',parseFloat(p.markPrice).toFixed(2),', profit: ',p.unRealizedProfit,', delta: ',delta.toFixed(0),', zmiana: ',zmiana.toFixed(0),
  // ', pips: ',pips.toFixed(0),', retSL: ',retSL.toFixed(2),' deltaSL: ',deltaSL.toFixed(2), ', delta5%: ',parseFloat(delta*0.1).toFixed(2),', sl: ',sl);
 
