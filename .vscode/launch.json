@@ -1,11 +1,12 @@
 {
     "version": "0.2.0",
     "configurations": [
+
         {
             "type": "node-terminal",
-            "name": "Run Script: test",
+            "name": "Run Script: app",
             "request": "launch",
-            "command": "npm run app",
+            "command": "node app",
             "cwd": "${workspaceFolder}"
         }
     ]
