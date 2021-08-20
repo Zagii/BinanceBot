@@ -2,7 +2,9 @@
 const Binance = require('node-binance-api');
 const Candle = require('./candle');
 const Matematyka = require('./matematyka');
-const Secrets = require('./secrets.json')
+const Secrets = require('./secrets.json');
+const Api = require('./api');
+const Config= require('./config');
 
 const binance = new Binance().options({
   APIKEY: Secrets.API_KEY,
@@ -12,102 +14,11 @@ const binance = new Binance().options({
 });
 
 
-const configTab=[
-	{ 
-		'symbol':'BTCUSDT',
-		'interwal':'15m',
-		'liczba': 20
-	},
-/*	{ 
-		'symbol':'BNBBTC',
-		'interwal':'15m',
-		'liczba': 20
-}*/
-];
-
-let listenKey;
+let configTab=[];
 let swieczki=[];
-let ordery=[];
+let orderyOpen=[];
+let pozycje=[];
 
-function delay(s)
-{
-	return new Promise((resolve,reject)=>{
-		setTimeout(function(){ 
-			console.log("...waiting ",s,"sec ...");
-			resolve();
-		}, s*1000);
-	});
-}
-
-async function buyMarket(symbol,quantity,liczba_prob)
-{ 
-	let params={
-		type:'MARKET',
-		quantity: quantity
-	};
-	let log={};
-	
-		do{	
-			try {
-				log=await binance.futuresMarketBuy( symbol,quantity,params );
-			} catch (error) {
-				console.log('buyMarket(',symbol,',',quantity,')')
-				console.log(error)
-			}
-			console.log(log);
-			liczba_prob --;
-			if(log.code<0) await delay(1);
-				else log.code = 0;
-			console.log('buyMarket::futuresMarketBuy-> Pozostalo prob: ',liczba_prob);
-		}while(log.code<0 && liczba_prob>0) 
-		
-		return log;
-
-
-}
-async function setBuyStopLoss(symbol,quantity,price,liczba_prob)
-{
-	console.log('setBuyStopLoss(',symbol,', q:',quantity,', price:',price,', n:',liczba_prob,')');
-	let params={
-		type:'STOP_MARKET',
-		stopPrice: price,
-		closePosition:true,
-		quantity:quantity
-	};
-	
-	do{	
-		try {
-			log=await binance.futuresMarketSell( symbol,quantity,params );
-		} catch (error) {
-			
-			console.log(error)
-		}
-			console.log(log);
-			liczba_prob --;
-			if(log.code == -2021) //msg:'Order would immediately trigger.'
-			{ //sellMarket
-
-				break;
-			}
-			 if(log.code<0) await delay(1);
-			 else log.code = 0;
-			console.log('setBuyStopLoss::futuresMarketSell-> Pozostalo prob: ',liczba_prob);
-		}while(log.code<0 && liczba_prob>0) 
-		
-	
-	return log;
-	
-}
-
-async function buyWithStopLoss(symbol,quantity,diff_price,liczba_prob)
-{
-	const buy=await buyMarket(symbol,quantity,liczba_prob);
-	if( buy.code == 0)
-	{
-		const SL_price=buy.price - diff_price;
-		const sellCode =await setBuyStopLoss(symbol,quantity,SL_price,liczba_prob);
-	}
-}
 
 function setSwieczke(e,symbol,interwal)
 {
@@ -117,27 +28,30 @@ function setSwieczke(e,symbol,interwal)
 	return o;
 }
   
-function przeliczSymbol(dane)
+function przeliczSymbol(dane,config)
 {
 	//console.log('przeliczSymbol: '+dane.symbol);
-	dane.maxKurs = Matematyka.maxKurs(dane.swieczki,"high");
-	dane.minKurs = Matematyka.minKurs(dane.swieczki,"low");
-	dane.dataMA5 = Matematyka.calculateMA(5,dane.swieczki,"close");
-	dane.dataMA10 = Matematyka.calculateMA(10,dane.swieczki,"close");
-	dane.dataMA15 = Matematyka.calculateMA(15,dane.swieczki,"close");
+	dane.maxKurs = Matematyka.getMax(dane.swieczki,"high");
+	dane.minKurs = Matematyka.getMin(dane.swieczki,"low");
+	dane.dataMA = Matematyka.calculateMA(config.maLiczba,dane.swieczki,"close");
+//	dane.dataMA10 = Matematyka.calculateMA(10,dane.swieczki,"close");
+//	dane.dataMA15 = Matematyka.calculateMA(15,dane.swieczki,"close");
 	return dane;
 }
 
 
 async function programInit()
 {
+	configTab=Config.getConfigTab();
+	const exinfo = await binance.futuresExchangeInfo();
 	
-	for (const element of configTab) {
+	for (const [i,element] of configTab.entries()) {
 		try{
+			configTab[i].exInfo= exinfo.symbols.find(x=>x.symbol===element.symbol);
 		const r = await pobierzSwieczki15min(element);
 		let swieczka = setSwieczke(r,element.symbol,element.interwal);
 
-		swieczka = przeliczSymbol(swieczka);
+		swieczka = przeliczSymbol(swieczka,element);
 		swieczki.push(swieczka);
 		}catch(err)
 		{
@@ -145,18 +59,11 @@ async function programInit()
 			console.log(err);
 		}
 	  }
-	  let orderAll= [];
-	  try{
-	  orderAll = await binance.futuresAllOrders();
-	  }catch{
-		console.log('programInit(',element.symbol,', ',element.interwal,'):futuresAllOrders')
-		console.log(err);
-	  }
-	  for (const el of configTab) {
-	//	  let ord = orderAll.filter(x=>x.symbol==el.symbol)
-	//	  let order={"symbol":el.symbol, "orderList": ord};
-	//	  ordery.push(order);
-	  }
+	  
+	  pozycje = await Api.getMyPositions();
+	  orderyOpen = await Api.getMyOpenOrders();
+	 
+	 
 }
 
 function pobierzSwieczki15min(e)
@@ -179,25 +86,7 @@ function pobierzSwieczki15min(e)
 }
 
 
-// Check an order's status
-//let orderid = "7610385";
-//binance.orderStatus("ETHBTC", orderid, function(error, json) {
-//	console.log("orderStatus()",json);
-//});
-
-// Cancel an order
-//binance.cancel("ETHBTC", orderid, function(error, response) {
-//	console.log("cancel()",response);
-//});
-
-
-// Get all account orders; active, canceled, or filled.
-//binance.allOrders("ETHBTC", function(error, json) {
-//	console.log(json);
-//});
-
-
-function nowaSwieczkaWS(candlesticks)
+async function nowaSwieczkaWS(candlesticks)
 {
 
 	let { e:eventType, E:eventTime, s:symbol, k:ticks, } = candlesticks;
@@ -219,28 +108,57 @@ function nowaSwieczkaWS(candlesticks)
 	{ // update ostatniej swieczki
 		swieczki[a].swieczki[swieczki[a].swieczki.length-1] = e;
 	}
-	swieczki[a]= przeliczSymbol(swieczki[a]);
-
-	//sprawdz stop loss (czy zamknac pozycje)
-	//sprawdz czy przesunac SL
-	//sprawdz czy otwarta pozycja
-	//czy otworzyc pozycje?
-	// buy
-	//symbol, quantity, price, params = {}
-
-	// sell
+	let conf =configTab.find(x=>x.symbol==symbol)
+	swieczki[a]= przeliczSymbol(swieczki[a],conf);
 }
+
+
 function subskrybuj()
 {
 	for (const element of configTab) {
 		binance.websockets.candlesticks(element.symbol, element.interwal, (candlesticks) =>nowaSwieczkaWS(candlesticks) );
 	}
-
-	//binance.futuresSubscribe(,console.log)
-	//binance.deliveryAllOrders(consol.log)
-	
 }
 
+async function cyklicznie()
+{
+	//pobierz pozycje
+	pozycje = await Api.getMyPositions();
+	orderyOpen = await Api.getMyOpenOrders();
+	// dodac automatycznego stoplosa gdy nie ma orderow konczacych zlecenie na wypadek awarii
+	for (const e of configTab)
+	{
+		let a = swieczki.findIndex(x=>(x.symbol==e.symbol && x.interwal==e.interwal));
+		await Api.setOrderJesliTrzeba(e.symbol,e,swieczki[a],pozycje);
+
+		let p= pozycje.find(x=>x.symbol==e.symbol);
+		if(!p || p.positionAmt==0) continue;
+		let orderType= p.positionAmt>0? 'BUY':'SELL';
+		let ord = orderyOpen.filter(x=>x.symbol==e.symbol&& x.side!=orderType );
+		let sl;
+		let nowySL;
+	
+		if(orderType=='BUY') //buy
+		{
+			sl = Matematyka.getMax(ord,"stopPrice");
+			nowySL=Matematyka.getNowySL(p,sl,e,orderType);
+		}else
+		{
+			sl = Matematyka.getMin(ord,"stopPrice");
+			nowySL=Matematyka.getNowySL(p,sl,e,orderType);
+		}
+		let ordToCancel=[];
+		if(nowySL!=sl)	
+		{
+			let ordSL = await Api.setOrderStopLoss(orderType,e.symbol,p.positionAmt,nowySL,2,e);
+			console.log(ordSL);
+			console.log('** NowySL: ',orderType, '-->', e.symbol,', sl: ',sl,', nowySL: ',nowySL);
+			ordToCancel=orderyOpen.filter(x=>x.symbol==e.symbol).map(x=>{return {orderId: String(x.orderId)}});
+			let cancelStatus = await Api.cancelOrderList(e.symbol,ordToCancel);
+			console.log(cancelStatus);
+		}
+	}
+}
 
 async function main()
 {
@@ -249,44 +167,7 @@ async function main()
 	await programInit();
 	console.log("liczba symboli, await: "+ swieczki.length);
 	subskrybuj();
-
-	buyWithStopLoss('BTCUSDT',0.001,46400,3);
-	return;
-
-
-// When the stop is reached, a stop order becomes a market order
-// Note: You must also pass one of these type parameters:
-// STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT
-let type = "STOP_LOSS";
-let quantity = 1;
-let price = 50000;
-let stopPrice = 19000;
-let params={
-	type:'TRAILING_STOP_MARKET',
-	activationPrice: price-0.02*price,
-	callbackRate: 1,
-
-};
-let log;
-//binance.sell("ETHBTC", quantity, price, {stopPrice: stopPrice, type: type});
-//log= await binance.futuresMarketBuy( 'BTCUSDT', 0.01);
-	//let log= await binance.futuresBuy( 'BTCUSDT', quantity,price);
-
-	/********* stop loss  ********/
-	price = 38500;
-	params={
-		type:'STOP_MARKET',
-		stopPrice:38813,
-		closePosition:true,
-		workingType:'CONTRACT_PRICE'
-	};
- //   log=await binance.futuresMarketSell( 'BTCUSDT', 1,params );
-	/********* stop loss  ********/
-
-
-
-//	console.info( await binance.futuresGetDataStream() );
-	console.log( log);
+	setInterval(cyklicznie,5000);	
 };
 
 main();
